@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-service  # Unique identifier for the Service within the namespace
+  namespace: default     # Kubernetes namespace where the Service is created
+  labels:
+    app: example-app     # Labels for organizing and selecting API objects
+    tier: frontend
+  annotations:
+    # Custom metadata; can be used by tools and libraries
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+spec:
+  selector:
+    app: example-app     # Defines which Pods are targeted by this Service
+  type: LoadBalancer     # Specifies how the Service is exposed (ClusterIP, NodePort, LoadBalancer, ExternalName)
+  clusterIP: 10.0.0.1    # IP address assigned to the Service within the cluster
+  externalIPs: 
+    - 80.11.12.10        # List of IP addresses for which the Service should handle traffic
+  ports:
+    - name: http         # Optional name for the port, useful for referencing
+      protocol: TCP      # IP protocol (TCP, UDP, SCTP)
+      port: 80           # Port exposed by this Service
+      targetPort: 8080   # Port to access on the Pod
+      nodePort: 30007    # Port exposed on each node's IP (NodePort and LoadBalancer types only)
+  externalName: my.database.example.com  # DNS name of external service (used with ExternalName type)
+  sessionAffinity: ClientIP  # Configures session affinity (None or ClientIP)
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # Duration for which a client IP is bound to a specific Pod
+  publishNotReadyAddresses: false  # If true, includes Pods that are not Ready in endpoints
+  topologyKeys:  # Used for topology-aware routing
+    - "kubernetes.io/hostname"
+    - "topology.kubernetes.io/zone"
+    - "topology.kubernetes.io/region"
+  loadBalancerIP: 78.11.24.19  # Requests a specific IP address for LoadBalancer
+  loadBalancerSourceRanges:  # Restricts which IP CIDR blocks can access the LoadBalancer
+    - 130.211.204.1/32
+    - 208.65.153.0/24
+  externalTrafficPolicy: Local  # Defines how external traffic is routed (Cluster or Local)
+  healthCheckNodePort: 30012  # Specifies the health check node port for LoadBalancer with Local policy
+  ipFamilies:  # List of IP families assigned to this Service
+    - IPv4
+  ipFamilyPolicy: SingleStack  # Represents the IP stack policy (SingleStack, PreferDualStack, RequireDualStack)
+status:
+  loadBalancer:
+    ingress:
+      - ip: 146.148.47.155  # Publicly accessible load balancer address (if applicable)
+
+# Additional notes:
+# - 'selector' determines which Pods receive traffic from this Service based on their labels.
+# - 'type' affects how the Service is exposed:
+#   * ClusterIP (default): Internal cluster IP only
+#   * NodePort: Exposes the Service on each Node's IP at a static port
+#   * LoadBalancer: Exposes the Service externally using a cloud provider's load balancer
+#   * ExternalName: Maps the Service to the contents of the externalName field
+# - 'sessionAffinity' can create "sticky sessions" when set to ClientIP
+# - 'topologyKeys' enable routing preferences based on node topology
+# - 'externalTrafficPolicy' affects how external traffic is routed:
+#   * Cluster (default): Allows routing to Pods on other nodes
+#   * Local: Only routes to Pods on the same node as the incoming traffic
+# - 'ipFamilies' and 'ipFamilyPolicy' are used for configuring dual-stack (IPv4 and IPv6) Services
+# - The 'status' section is typically managed by the system, not set manually
