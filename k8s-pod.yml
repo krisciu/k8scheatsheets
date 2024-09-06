@@ -1,0 +1,118 @@
+apiVersion: v1  # Specifies the API version being used, 'v1' is the core API group
+kind: Pod  # Defines this as a Pod object, the smallest deployable unit in Kubernetes
+metadata:
+  name: example-pod  # Unique identifier for the Pod within the namespace
+  namespace: default  # Kubernetes namespace where the Pod is created. If omitted, 'default' is used
+  labels:  # Key-value pairs for organizing and selecting API objects
+    app: example-app  # Commonly used to link Services to Pods
+    tier: frontend
+  annotations:  # Non-identifying metadata; can be used by tools and libraries
+    example.com/some-annotation: some-value
+spec:  # Desired state of the Pod
+  containers:  # List of containers to run in the Pod
+  - name: main-container  # Name of the container, must be unique within the Pod
+    image: nginx:1.14.2  # Docker image to use for this container
+    imagePullPolicy: IfNotPresent  # When to pull the image (Always, Never, IfNotPresent)
+    ports:
+    - containerPort: 80  # Port the container exposes
+      name: http  # Optional name for the port
+      protocol: TCP  # Protocol for port (TCP, UDP, SCTP)
+    resources:  # Compute Resources required by this container
+      limits:  # Maximum resources the container can use
+        cpu: "1"  # Can be expressed as millicores (e.g., 500m) or whole cores
+        memory: "512Mi"  # Can use suffixes like Ki, Mi, Gi
+      requests:  # Minimum resources the container needs
+        cpu: "0.5"
+        memory: "256Mi"
+    env:  # Environment variables to set in the container
+    - name: ENV_VAR_NAME
+      value: "env_var_value"
+    - name: SECRET_ENV_VAR  # Environment variable from a Secret
+      valueFrom:
+        secretKeyRef:
+          name: mysecret
+          key: secretkey
+    volumeMounts:  # Volumes to mount in the container
+    - name: config-volume
+      mountPath: /etc/config  # Where to mount the volume in the container
+      readOnly: true  # Optional: make the volume read-only
+    livenessProbe:  # Periodic probe of container liveness
+      httpGet:  # Make an HTTP request
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 15  # Wait before first probe
+      periodSeconds: 10  # How often to perform the probe
+    readinessProbe:  # Periodic probe of container service readiness
+      httpGet:
+        path: /ready
+        port: 8080
+    command: ["/bin/sh"]  # Command to run in the container
+    args: ["-c", "while true; do echo hello; sleep 10;done"]  # Arguments to the command
+  initContainers:  # List of initialization containers
+  - name: init-container
+    image: busybox:1.28
+    command: ['sh', '-c', 'echo The app is running! && sleep 10']
+  volumes:  # Volumes available to the containers
+  - name: config-volume
+    configMap:
+      name: example-config  # Name of ConfigMap to use
+  - name: secret-volume
+    secret:
+      secretName: example-secret  # Name of Secret to use
+  restartPolicy: Always  # Restart policy for the Pod (Always, OnFailure, Never)
+  nodeSelector:  # Simple constraints for node selection
+    disktype: ssd
+  affinity:  # More complex node selection rules
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/e2e-az-name
+            operator: In
+            values:
+            - e2e-az1
+            - e2e-az2
+  tolerations:  # Allow Pod to be scheduled on nodes with matching taints
+  - key: "example-key"
+    operator: "Exists"
+    effect: "NoSchedule"
+  serviceAccountName: example-sa  # Service account to use for the Pod
+  securityContext:  # Security settings for the Pod
+    runAsUser: 1000  # User ID to run the entrypoint of the container
+    runAsGroup: 3000  # Group ID to run the entrypoint of the container
+    fsGroup: 2000  # Group ID for volume ownership
+  dnsPolicy: ClusterFirst  # How DNS should work for the Pod
+  hostNetwork: false  # Use host's network namespace
+  terminationGracePeriodSeconds: 30  # Grace period for forceful termination
+
+# Additional notes:
+# - 'containers' is the core of the Pod spec, defining one or more containers that run your application
+# - 'initContainers' run to completion in order before any app containers start
+# - 'volumes' define storage that can be mounted by containers in the Pod
+# - 'restartPolicy' determines how the Pod behaves when containers exit
+# - 'nodeSelector', 'affinity', and 'tolerations' influence Pod scheduling:
+#   * nodeSelector is a simple way to constrain Pods to nodes with specific labels
+#   * affinity/anti-affinity allow more complex scheduling rules
+#   * tolerations allow a Pod to be scheduled on nodes with matching taints
+# - 'serviceAccountName' specifies the identity for processes running in the Pod
+# - 'securityContext' sets permissions and access control for the Pod
+# - 'dnsPolicy' defines how DNS should work for the Pod
+# - 'hostNetwork' when true, uses the host's network namespace
+# - 'terminationGracePeriodSeconds' is the time given to gracefully terminate the Pod
+
+# Probes:
+# - 'livenessProbe': Indicates if the container is running. If it fails, the container is restarted.
+# - 'readinessProbe': Indicates if the container is ready to serve requests. If it fails, the container is removed from service load balancers.
+
+# Resources:
+# - 'limits' specify the maximum amount of compute resources allowed
+# - 'requests' specify the minimum amount of compute resources required
+
+# Environment Variables:
+# Can be set directly with 'value' or sourced from ConfigMaps or Secrets using 'valueFrom'
+
+# Volumes:
+# Can be sourced from various types including ConfigMaps, Secrets, PersistentVolumeClaims, etc.
+
+# Security:
+# 'securityContext' can also be set at the container level for more granular control
