@@ -1,0 +1,105 @@
+apiVersion: apps/v1  # Specifies the API version; apps/v1 is used for Deployments since Kubernetes 1.9
+kind: Deployment  # Defines this as a Deployment object, which manages a replicated application
+metadata:
+  name: example-deployment  # Unique identifier for the Deployment within the namespace
+  namespace: default  # Kubernetes namespace where the Deployment is created. If omitted, 'default' is used
+  labels:  # Key-value pairs for organizing and selecting API objects
+    app: example-app  # Common label to group all components of an application
+    environment: production  # Label indicating the environment (e.g., production, staging, dev)
+  annotations:  # Non-identifying metadata; can be used by tools and libraries
+    kubernetes.io/change-cause: "Update to version 2.0"  # Records the reason for the last update
+spec:  # Specification of the desired behavior of the Deployment
+  replicas: 3  # Desired number of Pod replicas. The Deployment ensures this many Pods are running
+  selector:  # Defines how the Deployment finds which Pods to manage
+    matchLabels:  # Simple label selector
+      app: example-app  # Must match the label in the Pod template
+    matchExpressions:  # More complex label selection rules
+      - {key: tier, operator: In, values: [frontend, backend]}  # Selects Pods with tier label set to either frontend or backend
+  minReadySeconds: 10  # Minimum number of seconds for which a newly created Pod should be ready without any of its containers crashing, for it to be considered available
+  strategy:  # Defines the strategy to replace old Pods with new ones
+    type: RollingUpdate  # The strategy used to replace old Pods (RollingUpdate or Recreate)
+    rollingUpdate:  # Configuration parameters for rolling update strategy
+      maxUnavailable: 25%  # Maximum number of Pods that can be unavailable during the update process
+      maxSurge: 25%  # Maximum number of Pods that can be created over the desired number of Pods
+  revisionHistoryLimit: 10  # Number of old ReplicaSets to retain for rollback purposes. Default is 10.
+  progressDeadlineSeconds: 600  # Maximum time in seconds for a deployment to make progress before it is considered to be failed
+  paused: false  # Indicates whether the deployment is paused (true) or not (false). Paused deployments don't process any updates to the pod template.
+  template:  # Pod template used to create new Pods
+    metadata:  # Metadata for the Pods created from this template
+      labels:  # Labels attached to the Pods
+        app: example-app  # Must match .spec.selector.matchLabels
+      annotations:  # Annotations for the Pods
+        prometheus.io/scrape: "true"  # Example annotation for Prometheus monitoring
+    spec:  # Specification of the desired behavior of the Pods
+      serviceAccountName: example-sa  # Service account to use for the Pods. Controls permissions for all processes in the Pod.
+      securityContext:  # Security settings for the Pods
+        runAsUser: 1000  # User ID to run the entrypoint of the container
+        runAsGroup: 3000  # Group ID to run the entrypoint of the container
+        fsGroup: 2000  # Group ID for volume ownership
+      containers:  # List of containers to run in each Pod
+      - name: main-container  # Name of the container, must be unique within the Pod
+        image: nginx:1.14.2  # Docker image to use for this container
+        imagePullPolicy: IfNotPresent  # When to pull the image (Always, Never, IfNotPresent)
+        ports:  # List of ports to expose from the container
+        - containerPort: 80  # Port number to expose
+        resources:  # Compute Resources required by this container
+          limits:  # Maximum resources the container can use
+            cpu: "1"  # Can be expressed as millicores (e.g., 500m) or whole cores
+            memory: "512Mi"  # Can use suffixes like Ki, Mi, Gi
+          requests:  # Minimum resources the container needs
+            cpu: "500m"  # 500 millicores = 0.5 cores
+            memory: "256Mi"  # 256 mebibytes
+        env:  # Environment variables to set in the container
+        - name: ENV_VAR_NAME  # Name of the environment variable
+          value: "env_var_value"  # Value of the environment variable
+        - name: SECRET_ENV_VAR  # Environment variable from a Secret
+          valueFrom:
+            secretKeyRef:  # Reference to a Secret
+              name: mysecret  # Name of the Secret
+              key: secretkey  # Key in the Secret to use
+        volumeMounts:  # Volumes to mount in the container
+        - name: config-volume  # Must match the volume name in spec.volumes
+          mountPath: /etc/config  # Where to mount the volume in the container
+          readOnly: true  # Optional: make the volume read-only
+        livenessProbe:  # Periodic probe of container liveness
+          httpGet:  # Make an HTTP request for the probe
+            path: /healthz  # Path to access on the HTTP server
+            port: 8080  # Port to access on the container
+          initialDelaySeconds: 15  # Number of seconds after the container has started before the probe is initiated
+          periodSeconds: 10  # How often (in seconds) to perform the probe
+        readinessProbe:  # Periodic probe of container service readiness
+          httpGet:
+            path: /ready  # Path to access on the HTTP server
+            port: 8080  # Port to access on the container
+      volumes:  # List of volumes that can be mounted by containers belonging to the Pod
+      - name: config-volume  # Name of the volume, used in volumeMounts
+        configMap:  # Use a ConfigMap as the volume source
+          name: example-config  # Name of the ConfigMap to use
+      nodeSelector:  # Constraints for node selection
+        disktype: ssd  # Only schedule this Pod on nodes with label disktype=ssd
+      affinity:  # More complex node selection rules
+        nodeAffinity:  # Node affinity rules
+          requiredDuringSchedulingIgnoredDuringExecution:  # Rules that MUST be met for a Pod to be scheduled onto a node
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/e2e-az-name  # Label key to match
+                operator: In  # Operator for matching (In, NotIn, Exists, DoesNotExist)
+                values:  # Label values to match
+                - e2e-az1
+                - e2e-az2
+      tolerations:  # Allow Pod to be scheduled on nodes with matching taints
+      - key: "example-key"  # Taint key to match
+        operator: "Exists"  # Operator for matching (Exists, Equal)
+        effect: "NoSchedule"  # Effect of the taint (NoSchedule, PreferNoSchedule, NoExecute)
+
+# Additional notes:
+# - The Deployment creates and manages ReplicaSets, which in turn manage Pods.
+# - The 'selector' field must match the labels in the Pod template.
+# - The 'strategy' field defines how updates should be performed. RollingUpdate is the default.
+# - 'revisionHistoryLimit' helps in managing the number of old ReplicaSets kept for rollback.
+# - 'progressDeadlineSeconds' sets a time limit for the deployment to make progress before it's considered failed.
+# - The 'template' section defines the Pod template used to create new Pods.
+# - 'securityContext' in the Pod spec sets security settings for all containers in the Pod.
+# - 'resources' requests and limits help in efficient scheduling and resource management.
+# - 'livenessProbe' and 'readinessProbe' help Kubernetes determine the health and readiness of the application.
+# - 'nodeSelector', 'affinity', and 'tolerations' provide control over which nodes Pods are scheduled on.
